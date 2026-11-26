@@ -28,7 +28,9 @@ def inicializar_db():
     CREATE TABLE IF NOT EXISTS proveedores (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nombre TEXT NOT NULL,
-        ciudad TEXT
+        ciudad TEXT,
+        contacto TEXT,
+        telefono TEXT
     );
     CREATE TABLE IF NOT EXISTS productos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -43,7 +45,9 @@ def inicializar_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nombre TEXT NOT NULL,
         tipo TEXT,
-        ciudad TEXT
+        ciudad TEXT,
+        contacto TEXT,
+        telefono TEXT
     );
     CREATE TABLE IF NOT EXISTS movimientos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,8 +55,11 @@ def inicializar_db():
         tipo TEXT NOT NULL CHECK (tipo IN ('entrada','salida')),
         cantidad INTEGER NOT NULL CHECK (cantidad > 0),
         fecha TEXT NOT NULL,
+        id_proveedor INTEGER,
         id_cliente INTEGER,
+        precio_unitario REAL,
         FOREIGN KEY (id_producto) REFERENCES productos(id),
+        FOREIGN KEY (id_proveedor) REFERENCES proveedores(id),
         FOREIGN KEY (id_cliente)  REFERENCES clientes(id)
     );
 
@@ -65,18 +72,33 @@ def inicializar_db():
     GROUP BY p.id, p.nombre, p.categoria, p.precio;
     """)
 
+    # Si la base de datos ya existía con la versión anterior, se agregan las columnas nuevas
+    def agregar_columna(tabla, columna, tipo_sql):
+        columnas = [c[1] for c in cursor.execute(f"PRAGMA table_info({tabla})")]
+        if columna not in columnas:
+            cursor.execute(f"ALTER TABLE {tabla} ADD COLUMN {columna} {tipo_sql}")
+
+    agregar_columna("proveedores", "contacto", "TEXT")
+    agregar_columna("proveedores", "telefono", "TEXT")
+    agregar_columna("clientes", "contacto", "TEXT")
+    agregar_columna("clientes", "telefono", "TEXT")
+    agregar_columna("movimientos", "id_proveedor", "INTEGER REFERENCES proveedores(id)")
+    agregar_columna("movimientos", "precio_unitario", "REAL")
+
     cursor.execute("SELECT COUNT(*) FROM proveedores")
     if cursor.fetchone()[0] == 0:
         cursor.executescript("""
-        INSERT INTO proveedores (nombre, ciudad) VALUES
-         ('fartelas', 'cali'), ('induboton', 'yumbo'),
-         ('insumos_valle', 'cali'), ('distribuidora_textil', 'bogota');
+        INSERT INTO proveedores (nombre, ciudad, contacto, telefono) VALUES
+         ('fartelas', 'cali', 'Laura Gómez', '3156579274'),
+         ('induboton', 'yumbo', 'Carlos Rivas', '3124567890'),
+         ('insumos_valle', 'cali', 'Andrés Muñoz', '3002704488'),
+         ('distribuidora_textil', 'bogota', 'Paola Torres', '3209876543');
 
-        INSERT INTO clientes (nombre, tipo, ciudad) VALUES
-         ('confecciones_maquila', 'empresa textil (maquila)', 'cali'),
-         ('studio_f', 'tienda de ropa', 'cali'),
-         ('cc_chipichape', 'centro comercial', 'cali'),
-         ('moda_online', 'e-commerce', 'bogota');
+        INSERT INTO clientes (nombre, tipo, ciudad, contacto, telefono) VALUES
+         ('confecciones_maquila', 'empresa textil (maquila)', 'cali', 'Jorge Salazar', '3147778899'),
+         ('studio_f', 'tienda de ropa', 'cali', 'Valentina Ríos', '3186589165'),
+         ('cc_chipichape', 'centro comercial', 'cali', 'Martha Cifuentes', '3112776525'),
+         ('moda_online', 'e-commerce', 'bogota', 'Felipe Ortiz', '3015552233');
 
         INSERT INTO productos (nombre, categoria, precio, id_proveedor, fecha_vencimiento) VALUES
          ('telas_lino', 'rollo', 600000, 1, '2028-03-15'),
@@ -89,10 +111,10 @@ def inicializar_db():
          ('herrajes', 'caja', 100000, 3, NULL),
          ('resortes', 'carreto', 200000, 3, '2027-12-20');
 
-        INSERT INTO movimientos (id_producto, tipo, cantidad, fecha) VALUES
-         (1,'entrada',100,'2026-09-01'),(2,'entrada',80,'2026-09-01'),(3,'entrada',40,'2026-09-02'),
-         (4,'entrada',60,'2026-09-02'),(5,'entrada',50,'2026-09-03'),(6,'entrada',5,'2026-09-03'),
-         (7,'entrada',30,'2026-09-05'),(8,'entrada',200,'2026-09-05'),(9,'entrada',50,'2026-09-06');
+        INSERT INTO movimientos (id_producto, tipo, cantidad, fecha, id_proveedor) VALUES
+         (1,'entrada',100,'2026-09-01',1),(2,'entrada',80,'2026-09-01',1),(3,'entrada',40,'2026-09-02',4),
+         (4,'entrada',60,'2026-09-02',2),(5,'entrada',50,'2026-09-03',3),(6,'entrada',5,'2026-09-03',2),
+         (7,'entrada',30,'2026-09-05',3),(8,'entrada',200,'2026-09-05',3),(9,'entrada',50,'2026-09-06',3);
 
         INSERT INTO movimientos (id_producto, tipo, cantidad, fecha, id_cliente) VALUES
          (1,'salida',30,'2026-09-10',1),(2,'salida',20,'2026-09-12',2),(3,'salida',15,'2026-09-15',2),
@@ -100,6 +122,21 @@ def inicializar_db():
          (5,'salida',10,'2026-09-26',4),(9,'salida',15,'2026-09-28',1),(7,'salida',10,'2026-10-02',3),
          (1,'salida',10,'2026-10-03',2);
         """)
+    # Completar contactos si la base venía de la versión anterior (sin teléfonos)
+    cursor.executescript("""
+    UPDATE proveedores SET contacto = 'Laura Gómez', telefono = '3156579274' WHERE nombre = 'fartelas' AND telefono IS NULL;
+    UPDATE proveedores SET contacto = 'Carlos Rivas', telefono = '3124567890' WHERE nombre = 'induboton' AND telefono IS NULL;
+    UPDATE proveedores SET contacto = 'Andrés Muñoz', telefono = '3002704488' WHERE nombre = 'insumos_valle' AND telefono IS NULL;
+    UPDATE proveedores SET contacto = 'Paola Torres', telefono = '3209876543' WHERE nombre = 'distribuidora_textil' AND telefono IS NULL;
+    UPDATE clientes SET contacto = 'Jorge Salazar', telefono = '3147778899' WHERE nombre = 'confecciones_maquila' AND telefono IS NULL;
+    UPDATE clientes SET contacto = 'Valentina Ríos', telefono = '3186589165' WHERE nombre = 'studio_f' AND telefono IS NULL;
+    UPDATE clientes SET contacto = 'Martha Cifuentes', telefono = '3112776525' WHERE nombre = 'cc_chipichape' AND telefono IS NULL;
+    UPDATE clientes SET contacto = 'Felipe Ortiz', telefono = '3015552233' WHERE nombre = 'moda_online' AND telefono IS NULL;
+    UPDATE movimientos SET id_proveedor = (SELECT id_proveedor FROM productos WHERE productos.id = movimientos.id_producto)
+     WHERE tipo = 'entrada' AND id_proveedor IS NULL;
+    UPDATE movimientos SET precio_unitario = (SELECT precio FROM productos WHERE productos.id = movimientos.id_producto)
+     WHERE precio_unitario IS NULL;
+    """)
     conn.commit()
     conn.close()
 
@@ -111,7 +148,8 @@ def leer(sql, params=()):
     return df
 
 
-def registrar_movimiento(id_producto, tipo, cantidad, fecha, id_cliente=None):
+def registrar_movimiento(id_producto, tipo, cantidad, fecha, id_cliente=None, id_proveedor=None,
+                         precio_unitario=None):
     """Registra una entrada o salida con BEGIN / COMMIT / ROLLBACK."""
     if not isinstance(cantidad, int) or cantidad <= 0:
         return False, "La cantidad debe ser un número entero mayor que 0."
@@ -120,11 +158,21 @@ def registrar_movimiento(id_producto, tipo, cantidad, fecha, id_cliente=None):
     cursor = conn.cursor()
     try:
         cursor.execute("BEGIN")
-        cursor.execute("SELECT nombre FROM productos WHERE id = ?", (id_producto,))
+        cursor.execute("SELECT nombre, precio FROM productos WHERE id = ?", (id_producto,))
         fila = cursor.fetchone()
         if fila is None:
             raise ValueError(f"El producto con ID {id_producto} no existe.")
-        nombre = fila[0]
+        nombre, precio_actual = fila
+        if tipo == "salida":
+            # en la salida el precio no se escribe: se toma el precio unitario del producto
+            precio_unitario = precio_actual
+
+        if tipo == "entrada" and id_proveedor is None:
+            raise ValueError("Para una entrada (compra) debe escoger el proveedor.")
+        if tipo == "entrada" and (precio_unitario is None or precio_unitario <= 0):
+            raise ValueError("El precio unitario de compra debe ser mayor que 0.")
+        if tipo == "salida" and id_cliente is None:
+            raise ValueError("Para una salida (venta) debe escoger el cliente.")
 
         if tipo == "salida":
             cursor.execute("SELECT stock FROM vw_inventario_actual WHERE id = ?", (id_producto,))
@@ -135,11 +183,24 @@ def registrar_movimiento(id_producto, tipo, cantidad, fecha, id_cliente=None):
                 )
 
         cursor.execute(
-            "INSERT INTO movimientos (id_producto, tipo, cantidad, fecha, id_cliente) VALUES (?, ?, ?, ?, ?)",
-            (id_producto, tipo, cantidad, fecha, id_cliente if tipo == "salida" else None),
+            "INSERT INTO movimientos (id_producto, tipo, cantidad, fecha, id_proveedor, id_cliente, precio_unitario) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (id_producto, tipo, cantidad, fecha,
+             id_proveedor if tipo == "entrada" else None,
+             id_cliente if tipo == "salida" else None,
+             precio_unitario),
         )
+        if tipo == "entrada":
+            # el precio de la última compra queda como precio unitario del producto
+            cursor.execute("UPDATE productos SET precio = ? WHERE id = ?", (precio_unitario, id_producto))
         conn.commit()
-        return True, f"{tipo.capitalize()} registrada: {cantidad} unidades de {nombre}."
+        if tipo == "entrada":
+            total = cantidad * precio_unitario
+            return True, (f"Entrada registrada: {cantidad} unidades de {nombre} a "
+                          f"${precio_unitario:,.0f} c/u. Total de la compra: ${total:,.0f}".replace(",", "."))
+        valor = cantidad * precio_unitario
+        return True, (f"Salida registrada: {cantidad} unidades de {nombre}. Salieron "
+                      f"${valor:,.0f} del valor del inventario (${precio_unitario:,.0f} c/u).".replace(",", "."))
     except Exception as e:
         conn.rollback()
         return False, str(e)
@@ -201,6 +262,10 @@ section[data-testid="stSidebar"] * {color: #EDE3C8;}
 .marino {background: linear-gradient(135deg, #3A3A3A, #000000); border: 1px solid #C9A227;}
 .verde {background: linear-gradient(135deg, #7BC67E, #2E7D32);} .rojo {background: linear-gradient(135deg, #F07167, #B3261E);}
 
+.contacto {background: #141414; border: 1px solid #3A311C; border-left: 6px solid #C9A227; border-radius: 10px;
+            padding: 14px 18px; color: #EDE3C8; line-height: 1.9; animation: aparecer .5s ease both;
+            box-shadow: 0 4px 12px rgba(0,0,0,.18);}
+.contacto .c-nombre {color: #E9C766; font-weight: 800; font-size: 1.15rem; margin-bottom: 2px;}
 .section-title {font-size: 1.25rem; font-weight: 800; color: #1A1A1A; border-left: 5px solid #C9A227; padding-left: 10px; margin: 1.3rem 0 .6rem 0;}
 
 /* ---------- pestañas ---------- */
@@ -214,7 +279,11 @@ section[data-testid="stSidebar"] * {color: #EDE3C8;}
 .stTabs [role="tab"][aria-selected="true"] p {color: #0B0B0B !important;}
 .stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"], .stTabs .react-aria-SelectionIndicator {display: none;}
 
-div[data-testid="stForm"] {background: #FFFFFF; border: none; border-radius: 14px; padding: 22px;
+.total-compra {background: #FBF3DC; border: 1px solid #E9C766; border-radius: 10px; padding: 10px 14px;
+                margin: 4px 0 12px 0; color: #1A1A1A; font-size: 1.02rem;}
+.total-compra b {color: #8C6A1E; font-size: 1.15rem;}
+.total-compra span {color: #7A6B55; font-size: .85rem; margin-left: 6px;}
+div[data-testid="stVerticalBlockBorderWrapper"]:has(.total-compra), div[data-testid="stForm"] {background: #FFFFFF; border: none; border-radius: 14px; padding: 22px;
                            box-shadow: 0 4px 14px rgba(0,0,0,.07); animation: aparecer .5s ease both;}
 div[data-testid="stDataFrame"] {border-radius: 12px; overflow: hidden; box-shadow: 0 4px 14px rgba(0,0,0,.06);
                                 animation: aparecer .6s ease both;}
@@ -373,10 +442,12 @@ with tab_inicio:
     with izq:
         titulo("🕒 Últimos movimientos")
         mov = leer("""
-            SELECT m.fecha, p.nombre AS producto, m.tipo, m.cantidad, c.nombre AS cliente
+            SELECT m.fecha, p.nombre AS producto, m.tipo, m.cantidad, m.precio_unitario,
+                   COALESCE(pr.nombre, c.nombre) AS cliente
             FROM movimientos m
             JOIN productos p ON p.id = m.id_producto
             LEFT JOIN clientes c ON c.id = m.id_cliente
+            LEFT JOIN proveedores pr ON pr.id = m.id_proveedor
             ORDER BY m.id DESC LIMIT 8
         """)
         mov["producto"] = mov["producto"].map(bonito)
@@ -389,7 +460,8 @@ with tab_inicio:
                 "producto": st.column_config.TextColumn("Material"),
                 "tipo": st.column_config.TextColumn("Tipo"),
                 "cantidad": st.column_config.NumberColumn("Cantidad"),
-                "cliente": st.column_config.TextColumn("Cliente"),
+                "precio_unitario": st.column_config.NumberColumn("Precio unit.", format="$%,.0f"),
+                "cliente": st.column_config.TextColumn("Proveedor / Cliente"),
             },
         )
     with der:
@@ -400,30 +472,67 @@ with tab_inicio:
 
 # ---------------- PESTAÑA 2: REGISTRAR MOVIMIENTO ----------------
 with tab_registrar:
-    productos = leer("SELECT id, nombre FROM productos ORDER BY nombre")
-    clientes = leer("SELECT id, nombre FROM clientes ORDER BY nombre")
+    productos = leer("SELECT id, nombre, id_proveedor, precio FROM productos ORDER BY nombre")
+    proveedores = leer("SELECT id, nombre, ciudad, contacto, telefono FROM proveedores ORDER BY nombre")
+    clientes = leer("SELECT id, nombre, tipo, ciudad, contacto, telefono FROM clientes ORDER BY nombre")
     opciones_prod = {bonito(row["nombre"]): int(row["id"]) for _, row in productos.iterrows()}
-    opciones_cli = {"(sin cliente)": None}
-    opciones_cli.update({bonito(row["nombre"]): int(row["id"]) for _, row in clientes.iterrows()})
+    opciones_prov = {bonito(row["nombre"]): int(row["id"]) for _, row in proveedores.iterrows()}
+    opciones_cli = {bonito(row["nombre"]): int(row["id"]) for _, row in clientes.iterrows()}
 
     form_col, info_col = st.columns([3, 2], gap="large")
     with form_col:
         titulo("📝 Registrar entrada o salida")
-        with st.form("form_movimiento"):
-            producto = st.selectbox("Materia prima", list(opciones_prod.keys()))
-            tipo = st.radio("Tipo de movimiento", ["entrada", "salida"], horizontal=True,
-                            format_func=lambda t: "📥 Entrada (compra)" if t == "entrada" else "📤 Salida (venta)")
+        # El tipo va fuera del formulario para que los campos cambien apenas se escoge
+        tipo = st.radio("Tipo de movimiento", ["entrada", "salida"], horizontal=True, key="tipo_mov",
+                        format_func=lambda t: "📥 Entrada (compra a proveedor)" if t == "entrada"
+                        else "📤 Salida (venta a cliente)")
+        producto = st.selectbox("Materia prima", list(opciones_prod.keys()), key="producto_mov")
+        id_prod = opciones_prod[producto]
+
+        with st.container(border=True):
             a, b = st.columns(2)
             with a:
-                cantidad = st.number_input("Cantidad", min_value=1, step=1, value=1)
+                cantidad = st.number_input("Cantidad", min_value=1, step=1, value=1, key="cantidad_mov")
             with b:
-                fecha = st.date_input("Fecha", value=date.today())
-            cliente = st.selectbox("Cliente (solo para salidas)", list(opciones_cli.keys()))
-            enviar = st.form_submit_button("Registrar movimiento", type="primary", width="stretch")
+                fecha = st.date_input("Fecha", value=date.today(), key="fecha_mov")
+
+            if tipo == "entrada":
+                # por defecto se propone el proveedor habitual y el precio actual del producto
+                fila_prod = productos.loc[productos["id"] == id_prod].iloc[0]
+                nombres_prov = list(opciones_prov.keys())
+                idx = next((k for k, v in enumerate(opciones_prov.values()) if v == fila_prod["id_proveedor"]), 0)
+                proveedor = st.selectbox("🚚 Proveedor que nos vende", nombres_prov, index=idx, key=f"prov_{id_prod}")
+                precio = st.number_input(
+                    "💲 Precio unitario de compra (COP)", min_value=0.0, step=1000.0,
+                    value=float(fila_prod["precio"]), format="%.0f", key=f"precio_{id_prod}",
+                    help="Lo que nos cobra el proveedor por cada unidad. Queda como precio del producto.",
+                )
+                st.markdown(
+                    f'<div class="total-compra">Total de la compra: <b>{pesos(cantidad * precio)}</b> '
+                    f'<span>({int(cantidad)} × {pesos(precio)})</span></div>',
+                    unsafe_allow_html=True,
+                )
+                cliente = None
+                boton = "📥 Registrar entrada"
+            else:
+                cliente = st.selectbox("👥 Cliente que nos compra", list(opciones_cli.keys()), key="cliente_mov")
+                precio_prod = float(productos.loc[productos["id"] == id_prod, "precio"].iloc[0])
+                st.markdown(
+                    f'<div class="total-compra">Valor que sale del inventario: <b>{pesos(cantidad * precio_prod)}</b> '
+                    f'<span>({int(cantidad)} × {pesos(precio_prod)}, precio unitario del producto)</span></div>',
+                    unsafe_allow_html=True,
+                )
+                proveedor = None
+                precio = None
+                boton = "📤 Registrar salida"
+            enviar = st.button(boton, type="primary", width="stretch")
 
         if enviar:
             ok, msg = registrar_movimiento(
-                opciones_prod[producto], tipo, int(cantidad), str(fecha), opciones_cli[cliente]
+                id_prod, tipo, int(cantidad), str(fecha),
+                id_cliente=opciones_cli[cliente] if cliente else None,
+                id_proveedor=opciones_prov[proveedor] if proveedor else None,
+                precio_unitario=float(precio) if precio is not None else None,
             )
             if ok:
                 st.success(msg, icon="✅")
@@ -433,11 +542,32 @@ with tab_registrar:
 
     with info_col:
         titulo("📦 Stock disponible")
-        fila = leer("SELECT nombre, categoria, stock FROM vw_inventario_actual WHERE id = ?",
-                    (opciones_prod[producto],))
-        s = int(fila["stock"].iloc[0])
-        icard("🧶", "rojo" if s < UMBRAL_BAJO else "verde", bonito(fila["nombre"].iloc[0]), f"{s} unid.")
-        icard("🏷️", "azul", "Categoría", fila["categoria"].iloc[0].capitalize(), retraso=0.1)
+        fila = leer("SELECT nombre, categoria, stock FROM vw_inventario_actual WHERE id = ?", (id_prod,))
+        s_actual = int(fila["stock"].iloc[0])
+        icard("🧶", "rojo" if s_actual < UMBRAL_BAJO else "verde", bonito(fila["nombre"].iloc[0]),
+              f"{s_actual} unid.")
+
+        if tipo == "entrada":
+            titulo("🚚 Contacto del proveedor")
+            p = proveedores[proveedores["id"] == opciones_prov[proveedor]].iloc[0]
+            st.markdown(
+                f'<div class="contacto"><div class="c-nombre">{bonito(p["nombre"])}</div>'
+                f'<div>👤 {p["contacto"] or "—"}</div>'
+                f'<div>📞 {p["telefono"] or "—"}</div>'
+                f'<div>📍 {str(p["ciudad"] or "—").capitalize()}</div></div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            titulo("👥 Contacto del cliente")
+            c = clientes[clientes["id"] == opciones_cli[cliente]].iloc[0]
+            st.markdown(
+                f'<div class="contacto"><div class="c-nombre">{bonito(c["nombre"])}</div>'
+                f'<div>🏷️ {str(c["tipo"] or "—").capitalize()}</div>'
+                f'<div>👤 {c["contacto"] or "—"}</div>'
+                f'<div>📞 {c["telefono"] or "—"}</div>'
+                f'<div>📍 {str(c["ciudad"] or "—").capitalize()}</div></div>',
+                unsafe_allow_html=True,
+            )
         st.caption("Las salidas no pueden superar el stock disponible. Si ocurre un error, "
                    "la transacción se deshace (ROLLBACK) y no se guarda nada.")
 
@@ -475,6 +605,7 @@ with tab_inventario:
             "estado": st.column_config.TextColumn("Estado"),
         },
     )
+    st.caption("💲 El precio unitario es el de la última compra registrada en «Registrar movimiento» (entrada).")
     st.download_button(
         "⬇️ Descargar inventario (CSV)",
         df_vista.to_csv(index=False).encode("utf-8"),
